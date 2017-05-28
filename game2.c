@@ -1,5 +1,5 @@
 /* game2.c - xmain, prntr */
-
+//test git
 #include <conf.h>
 #include <kernel.h>
 #include <io.h>
