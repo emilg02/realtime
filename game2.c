@@ -4,14 +4,15 @@
 #include <kernel.h>
 #include <io.h>
 #include <bios.h>
-
+#include "header.h"
 extern SYSCALL  sleept(int);
 extern struct intmap far *sys_imp;
-
+void drawCircle (int x, int y);
+void drawCockpit();
 
 #define ARROW_NUMBER 5
 #define TARGET_NUMBER 4
-
+unsigned char far *b800h; //define at the top
 int receiver_pid;
 
 INTPROC new_int9(int mdevno)
@@ -90,7 +91,7 @@ void displayer( void )
          {
                receive();
                //sleept(18);
-               printf(display);
+               //printf(display);
          } //while
 } // prntr
 
@@ -118,18 +119,22 @@ POSITION arrow_pos[ARROW_NUMBER];
 void updateter()
 {
 
-  int i,j;
-  int glider_position, glider_height, wall_from, wall_to, wall_height;     
+  int i,j,x,y;
+  int glider_position, glider_height;    
   char ch;
 
 
 
   glider_position = 39; //X axis (start in the middle)
-  glider_height = 23; //marks the buttom of the glider
-	wall_from = 0;
-	wall_to = 79;
-	wall_height = 3;
-
+  glider_height = 20; //marks the buttom of the glider
+	
+	/*Init screen*/
+	for(i=0; i < 25; i++)
+       for(j=0; j < 80; j++)
+            display_draft[i][j] = ' ';  // blank
+		
+		
+	drawCockpit();
 
   while(1)
   {
@@ -152,60 +157,23 @@ void updateter()
        if (glider_position <= 74 )
          glider_position++;
        else;
-	   else if ( (ch =='w') || (ch == 'W') )
-		   if (glider_height -1 == wall_height)
-			   asm INT 27;
-		   else
-		   if (glider_height >=2)
-		   glider_height--;
+	   else if ( (ch =='w') || (ch == 'W') );
    } // while(front != -1)
 
      ch = 0;
-     for(i=0; i < 25; i++)
-        for(j=0; j < 80; j++)
-            display_draft[i][j] = ' ';  // blank
-	
-	
-	/* Glider basic shape
-	display_draft[glider_height+2][glider_position-2] = '/';
-	display_draft[glider_height+2][glider_position+2] = '\\';
-	display_draft[glider_height+1][glider_position-1] = '/';
-	display_draft[glider_height+1][glider_position+1] = '\\';
-	display_draft[glider_height][glider_position] = '^';*/
-	
-	
-	/*Glider v2 shape */
-	display_draft[glider_height+1][glider_position] = '_';
-	display_draft[glider_height+1][glider_position-1] = '(';
-	display_draft[glider_height+1][glider_position+1] = ')';
-	display_draft[glider_height+1][glider_position-2] = '-';
-	display_draft[glider_height+1][glider_position-3] = '-';
-	display_draft[glider_height+1][glider_position-4] = 'o';
-	display_draft[glider_height+1][glider_position+2] = '-';
-	display_draft[glider_height+1][glider_position+3] = '-';
-	display_draft[glider_height+1][glider_position+4] = 'o';
-	
-	display_draft[glider_height+1][glider_position-2] = '-';
-	display_draft[glider_height+1][glider_position-3] = '-';
-	display_draft[glider_height+1][glider_position-4] = 'o';
-	
-	display_draft[glider_height][glider_position-1] = '_';
-	display_draft[glider_height][glider_position-2] = '_';
-	display_draft[glider_height][glider_position+1] = '_';
-	display_draft[glider_height][glider_position+2] = '_';
-	display_draft[glider_height][glider_position] = '|';
-	
-	
-	/*Display wall*/
-	for (i=wall_from;i<=wall_to;i++)
-		display_draft[wall_height][i] = '*';
-	
-	/*End wall*/
 
-    for(i=0; i < 25; i++)
+	
+	
+	
+	for (i=0; i<25;i++)
+		for (j=0;j<80;j++)
+			b800h[2*(i*80+j)] = display_draft[i][j];
+		
+		
+    /*for(i=0; i < 25; i++)
       for(j=0; j < 80; j++)
         display[i*80+j] = display_draft[i][j];
-    display[2000] = '\0';
+    display[2000] = '\0';*/
 
   } // while(1)
 
@@ -241,8 +209,22 @@ SYSCALL schedule(int no_of_pids, int cycle_length, int pid1, ...)
 
 xmain()
 {
-        int uppid, dispid, recvpid;
+        int uppid, dispid, recvpid,i;
+		b800h = (unsigned char far*) 0xB8000000;
+	
+	asm {
+		mov ah, 0
+		mov al, 03
+		int 10h
+	}
 
+	for (i=0;i<4000;i+=2)
+ 	{	
+		b800h[i] = ' '; //ascii - empty character
+		b800h[i+1] = 95; //attribute- 4 bits for background etc - color
+	}
+		
+		
         resume( dispid = create(displayer, INITSTK, INITPRIO, "DISPLAYER", 0) );
         resume( recvpid = create(receiver, INITSTK, INITPRIO+3, "RECIVEVER", 0) );
         resume( uppid = create(updateter, INITSTK, INITPRIO, "UPDATER", 0) );
@@ -250,3 +232,54 @@ xmain()
         set_new_int9_newisr();
     schedule(2,10, dispid, 0,  uppid, 5);
 } // xmain
+
+void drawCircle (int x, int y)
+{
+	
+	int i;
+	for (i=x;i<x+4;i++)
+		display_draft[y][i] = '*';
+	
+	display_draft[y+1][x-1] = '*';
+	display_draft[y+1][x+4] = '*';
+	
+	display_draft[y+2][x-2] = '*';
+	display_draft[y+2][x+5] = '*';
+	
+	display_draft[y+3][x-1] = '*';
+	display_draft[y+3][x+4] = '*';
+	
+	for (i=x;i<x+4;i++)
+		display_draft[y+4][i] = '*';
+}
+
+void drawCockpit()
+{
+	int i;
+	drawCircle(FIRST_CIRCLE,CIRCLE_HEIGHT);
+	drawCircle(FIRST_CIRCLE+CIRCLE_GAP, CIRCLE_HEIGHT);
+	drawCircle(FIRST_CIRCLE+CIRCLE_GAP*2, CIRCLE_HEIGHT);
+	drawCircle(FIRST_CIRCLE+CIRCLE_GAP*3, CIRCLE_HEIGHT);
+	drawCircle(FIRST_CIRCLE+CIRCLE_GAP*4, CIRCLE_HEIGHT);
+	
+	display_draft[CIRCLE_HEIGHT][0] = '/';
+	display_draft[CIRCLE_HEIGHT-1][1] = '/';
+	display_draft[CIRCLE_HEIGHT-1][78] = '\\';
+	display_draft[CIRCLE_HEIGHT][79] = '\\';
+	
+	for (i=3;i<77;i++)
+		if (i< 39 || i > 41)
+		display_draft[CIRCLE_HEIGHT-2][i] = '_';
+	
+	display_draft[CIRCLE_HEIGHT-2][38] = '/';
+	display_draft[CIRCLE_HEIGHT-3][39] = '/';
+	display_draft[CIRCLE_HEIGHT-3][40] = '\\';
+	display_draft[CIRCLE_HEIGHT-2][41] = '\\';
+	
+	/*Draw circle descriptions*/
+	display_draft[CIRCLE_HEIGHT-1][FIRST_CIRCLE] = 'U';
+	display_draft[CIRCLE_HEIGHT-1][FIRST_CIRCLE+1] = 'P';
+	/*End circle descriptions*/
+	
+		
+}
