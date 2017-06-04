@@ -9,12 +9,17 @@ extern SYSCALL  sleept(int);
 extern struct intmap far *sys_imp;
 void drawCircle (int x, int y);
 void drawCockpit();
-
-#define ARROW_NUMBER 5
-#define TARGET_NUMBER 4
+void updateStrip();
+void updateDistance();
 unsigned char far *b800h; //define at the top
 int receiver_pid;
+int strip_row = 0;
 
+
+/*Global variables*/
+int LEFT_DIRECTION = 0;
+int RIGHT_DIRECTION = 0;
+/*End global variables*/
 INTPROC new_int9(int mdevno)
 {
  char result = 0;
@@ -112,8 +117,7 @@ void receiver()
 
 
 char display_draft[25][80];
-POSITION target_pos[TARGET_NUMBER];
-POSITION arrow_pos[ARROW_NUMBER];
+
 
 
 void updateter()
@@ -135,7 +139,6 @@ void updateter()
 		
 		
 	drawCockpit();
-
   while(1)
   {
 
@@ -149,32 +152,61 @@ void updateter()
      else
        front = rear = -1;
 
-     if ( (ch == 'a') || (ch == 'A') )
-       if (glider_position >= 5 )
-              glider_position--;
-       else;
+     if ( (ch == 'a' || ch == 'A'))
+	 {
+       LEFT_DIRECTION--;
+	   b800h[2*(0*80+0)]++;
+	 }
      else if ( (ch == 'd') || (ch == 'D') )
-       if (glider_position <= 74 )
-         glider_position++;
-       else;
+       RIGHT_DIRECTION++;
 	   else if ( (ch =='w') || (ch == 'W') );
    } // while(front != -1)
 
-     ch = 0;
-
-	
+	  
+	  
+	  
+	   /*Move strip left*/
+	  if (ch == 'd' || ch == 'D')
+	  {
+	 for (i=0; i<strip_row;i++)
+	 {
+		for (j=0;j<80;j++)
+		{
+			if (display_draft[i][j] == '*')
+			{
+					display_draft[i][j-1] = '*';
+					display_draft[i][j] = ' ';
+				
+			}
+		}
+	}	 
+	}
+	 /*End left*/
+	  
+	 /*If left, run backwards (move strip right)*/
+	 if (ch == 'a' || ch == 'A')
+	{
+	for (i = strip_row;i >=0;i--)
+	 {
+		for (j=80;j>=0;j--)
+		{
+			if (display_draft[i][j] == '*')
+			{
+					display_draft[i][j+1] = '*';
+					display_draft[i][j] = ' ';			
+			}
+		}
+	}
+	 }
+	 /*End right*/
+	   
 	
 	
 	for (i=0; i<25;i++)
 		for (j=0;j<80;j++)
 			b800h[2*(i*80+j)] = display_draft[i][j];
-		
-		
-    /*for(i=0; i < 25; i++)
-      for(j=0; j < 80; j++)
-        display[i*80+j] = display_draft[i][j];
-    display[2000] = '\0';*/
-
+	 updateStrip();	
+	ch = 0;
   } // while(1)
 
 } // updater 
@@ -230,7 +262,7 @@ xmain()
         resume( uppid = create(updateter, INITSTK, INITPRIO, "UPDATER", 0) );
         receiver_pid =recvpid;  
         set_new_int9_newisr();
-    schedule(2,10, dispid, 0,  uppid, 5);
+    schedule(2,10, dispid, 0,  uppid, 8);
 } // xmain
 
 void drawCircle (int x, int y)
@@ -256,6 +288,13 @@ void drawCircle (int x, int y)
 void drawCockpit()
 {
 	int i;
+	char updown[] = "UP/DOWN\0";
+	char leftright [] = "LEFT/RIGHT\0";
+	char gps[] = "GPS\0";
+	char distance[] = "DISTANCE\0";
+	char length[] = "LENGTH\0";
+	
+		
 	drawCircle(FIRST_CIRCLE,CIRCLE_HEIGHT);
 	drawCircle(FIRST_CIRCLE+CIRCLE_GAP, CIRCLE_HEIGHT);
 	drawCircle(FIRST_CIRCLE+CIRCLE_GAP*2, CIRCLE_HEIGHT);
@@ -277,9 +316,40 @@ void drawCockpit()
 	display_draft[CIRCLE_HEIGHT-2][41] = '\\';
 	
 	/*Draw circle descriptions*/
-	display_draft[CIRCLE_HEIGHT-1][FIRST_CIRCLE] = 'U';
-	display_draft[CIRCLE_HEIGHT-1][FIRST_CIRCLE+1] = 'P';
-	/*End circle descriptions*/
+
+	for (i=0;i<strlen(updown);i++)
+		display_draft[CIRCLE_HEIGHT-1][FIRST_CIRCLE+i] = updown[i];
 	
-		
+	for (i=0;i<strlen(leftright);i++)
+		display_draft[CIRCLE_HEIGHT-1][FIRST_CIRCLE+i+CIRCLE_GAP-2] = leftright[i]; 
+	
+	for (i=0;i<strlen(gps);i++)
+		display_draft[CIRCLE_HEIGHT-1][FIRST_CIRCLE+i+CIRCLE_GAP*2+1] = gps[i]; 
+	
+	for (i=0;i<strlen(distance);i++)
+		display_draft[CIRCLE_HEIGHT-1][FIRST_CIRCLE+i+CIRCLE_GAP*3-1] = distance[i]; 
+	
+	for (i=0;i<strlen(length);i++)
+		display_draft[CIRCLE_HEIGHT-1][FIRST_CIRCLE+i+CIRCLE_GAP*4-2] = length[i]; 
+	/*End circle descriptions*/
+}
+
+void updateStrip()
+{
+		if (strip_row < CIRCLE_HEIGHT-1)
+		{
+		if (20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION <80
+		&& 59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION >0)
+		{
+		display_draft[strip_row][20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='*';
+		display_draft[strip_row][59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='*';
+		strip_row++;
+		updateDistance();
+		}
+	}
+}
+
+void updateDistance()
+{
+	display_draft[22][57] = 19 -strip_row + '0';
 }
