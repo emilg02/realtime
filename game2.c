@@ -14,7 +14,7 @@ void updateDistance();
 unsigned char far *b800h; //define at the top
 int receiver_pid;
 int strip_row = 0;
-
+char display_draft[25][80];
 
 /*Global variables*/
 int LEFT_DIRECTION = 0;
@@ -92,9 +92,13 @@ int gno_of_pids;
 
 void displayer( void )
 {
+	int i,j;
 	while (1)
          {
                receive();
+			   	for (i=0; i<25;i++)
+					for (j=0;j<80;j++)
+						b800h[2*(i*80+j)] = display_draft[i][j];
                //sleept(18);
                //printf(display);
          } //while
@@ -116,7 +120,7 @@ void receiver()
 } //  receiver
 
 
-char display_draft[25][80];
+
 
 
 
@@ -155,21 +159,24 @@ void updateter()
      if ( (ch == 'a' || ch == 'A'))
 	 {
        LEFT_DIRECTION--;
-	   b800h[2*(0*80+0)]++;
+	   for (i = strip_row;i >=0;i--)
+		{
+		for (j=80;j>=0;j--)
+		{
+			if (display_draft[i][j] == '*')
+			{
+					display_draft[i][j+1] = '*';
+					display_draft[i][j] = ' ';			
+			}
+		}
+		}
+	   
 	 }
      else if ( (ch == 'd') || (ch == 'D') )
-       RIGHT_DIRECTION++;
-	   else if ( (ch =='w') || (ch == 'W') );
-   } // while(front != -1)
-
-	  
-	  
-	  
-	   /*Move strip left*/
-	  if (ch == 'd' || ch == 'D')
-	  {
-	 for (i=0; i<strip_row;i++)
 	 {
+       RIGHT_DIRECTION++;
+	   	 for (i=0; i<strip_row;i++)
+		{
 		for (j=0;j<80;j++)
 		{
 			if (display_draft[i][j] == '*')
@@ -179,33 +186,18 @@ void updateter()
 				
 			}
 		}
-	}	 
-	}
-	 /*End left*/
-	  
-	 /*If left, run backwards (move strip right)*/
-	 if (ch == 'a' || ch == 'A')
-	{
-	for (i = strip_row;i >=0;i--)
-	 {
-		for (j=80;j>=0;j--)
-		{
-			if (display_draft[i][j] == '*')
-			{
-					display_draft[i][j+1] = '*';
-					display_draft[i][j] = ' ';			
-			}
 		}
-	}
-	 }
-	 /*End right*/
 	   
-	
-	
-	for (i=0; i<25;i++)
-		for (j=0;j<80;j++)
-			b800h[2*(i*80+j)] = display_draft[i][j];
-	 updateStrip();	
+	 }
+	   else if ( (ch =='w') || (ch == 'W') )
+	   {
+		   //updateStrip();
+	   }
+   } // while(front != -1)
+
+	  
+	 updateStrip();  
+		
 	ch = 0;
   } // while(1)
 
@@ -262,7 +254,7 @@ xmain()
         resume( uppid = create(updateter, INITSTK, INITPRIO, "UPDATER", 0) );
         receiver_pid =recvpid;  
         set_new_int9_newisr();
-    schedule(2,10, dispid, 0,  uppid, 8);
+    schedule(2,7, dispid, 0,  uppid, 3);
 } // xmain
 
 void drawCircle (int x, int y)
@@ -338,14 +330,10 @@ void updateStrip()
 {
 		if (strip_row < CIRCLE_HEIGHT-1)
 		{
-		if (20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION <80
-		&& 59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION >0)
-		{
 		display_draft[strip_row][20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='*';
 		display_draft[strip_row][59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='*';
 		strip_row++;
 		updateDistance();
-		}
 	}
 }
 
