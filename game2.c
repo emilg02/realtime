@@ -1,5 +1,4 @@
 /* game2.c - xmain, prntr */
-//test git
 #include <conf.h>
 #include <kernel.h>
 #include <io.h>
@@ -7,7 +6,7 @@
 #include "header.h"
 extern SYSCALL  sleept(int);
 extern struct intmap far *sys_imp;
-void drawCircle (int x, int y);
+void drawCircle (int x, int y,char color);
 void drawCockpit();
 void updateStrip();
 void updateDistance();
@@ -43,6 +42,9 @@ asm {
    else
    if (scan == 77)
       result = 'd';
+   else
+	if (scan == 80)
+		result = 's';
  if ((scan == 46)&& (ascii == 3)) // Ctrl-C?
    asm INT 27; // terminate xinu
 
@@ -65,19 +67,12 @@ void set_new_int9_newisr()
 } // set_new_int9_newisr
 
 
-typedef struct position
-{
-  int x;
-  int y;
-
-}  POSITION;
 
 char display[2001];
 
 char ch_arr[2048];
 int front = -1;
 int rear = -1;
-
 int point_in_cycle;
 int gcycle_length;
 int gno_of_pids;
@@ -163,10 +158,20 @@ void updateter()
 		{
 		for (j=80;j>=0;j--)
 		{
-			if (display_draft[i][j] == '*')
+			if (display_draft[i][j] == '/' )
 			{
-					display_draft[i][j+1] = '*';
+					display_draft[i][j+1] = '/';
 					display_draft[i][j] = ' ';			
+			}
+			else if (display_draft[i][j] == '\\')
+			{
+				display_draft[i][j+1] = '\\';
+				display_draft[i][j] = ' ';
+			}
+			else if (b800h[2*(i*80+j)+1] == 10)
+			{
+				b800h[2*(i*80+j)+1] = 20;
+				b800h[2*(i*80+j+1)+1] = 10;
 			}
 		}
 		}
@@ -179,11 +184,21 @@ void updateter()
 		{
 		for (j=0;j<80;j++)
 		{
-			if (display_draft[i][j] == '*')
+			if (display_draft[i][j] == '/')
 			{
-					display_draft[i][j-1] = '*';
+					display_draft[i][j-1] = '/';
 					display_draft[i][j] = ' ';
 				
+			}
+			else if (display_draft[i][j] == '\\')
+			{
+				display_draft[i][j-1] = '\\';
+				display_draft[i][j] = ' ';
+			}
+			else if (b800h[2*(i*80+j)+1] == 10)
+			{
+				b800h[2*(i*80+j)+1] = 20;
+				b800h[2*(i*80+j-1)+1] = 10;
 			}
 		}
 		}
@@ -191,7 +206,11 @@ void updateter()
 	 }
 	   else if ( (ch =='w') || (ch == 'W') )
 	   {
-		   //updateStrip();
+		   updateStrip();
+	   }
+	   else if ( (ch =='s') || (ch == 'S'))
+	   {
+		   strip_row--;
 	   }
    } // while(front != -1)
 
@@ -214,7 +233,6 @@ SYSCALL schedule(int no_of_pids, int cycle_length, int pid1, ...)
   int *iptr;
 
   disable(ps);
-
   gcycle_length = cycle_length;
   point_in_cycle = 0;
   gno_of_pids = no_of_pids;
@@ -245,7 +263,7 @@ xmain()
 	for (i=0;i<4000;i+=2)
  	{	
 		b800h[i] = ' '; //ascii - empty character
-		b800h[i+1] = 95; //attribute- 4 bits for background etc - color
+		b800h[i+1] = 20; //attribute- 4 bits for background etc - color
 	}
 		
 		
@@ -254,32 +272,44 @@ xmain()
         resume( uppid = create(updateter, INITSTK, INITPRIO, "UPDATER", 0) );
         receiver_pid =recvpid;  
         set_new_int9_newisr();
-    schedule(2,7, dispid, 0,  uppid, 3);
+    schedule(2,15, dispid, 0,  uppid, 12);
 } // xmain
 
-void drawCircle (int x, int y)
+void drawCircle (int x, int y, char color)
 {
-	
+	//display_draft will hold the char, b800h will hold the colors
 	int i;
 	for (i=x;i<x+4;i++)
+	{
 		display_draft[y][i] = '*';
+		b800h[2*(y*80+i)+1] = color;
+	}
 	
 	display_draft[y+1][x-1] = '*';
 	display_draft[y+1][x+4] = '*';
+	b800h[2*((y+1)*80+x-1)+1] = color;
+	b800h[2*((y+1)*80+x+4)+1] = color;
 	
 	display_draft[y+2][x-2] = '*';
 	display_draft[y+2][x+5] = '*';
+	b800h[2*((y+2)*80+x-2)+1] = color;
+	b800h[2*((y+2)*80+x+5)+1] = color;
 	
 	display_draft[y+3][x-1] = '*';
 	display_draft[y+3][x+4] = '*';
+	b800h[2*((y+3)*80+x-1)+1] = color;
+	b800h[2*((y+3)*80+x+4)+1] = color;
 	
 	for (i=x;i<x+4;i++)
+	{
 		display_draft[y+4][i] = '*';
+		b800h[2*((y+4)*80+i)+1] = color;
+	}
 }
 
 void drawCockpit()
 {
-	int i;
+	int i,j;
 	char updown[] = "UP/DOWN\0";
 	char leftright [] = "LEFT/RIGHT\0";
 	char gps[] = "GPS\0";
@@ -287,11 +317,11 @@ void drawCockpit()
 	char length[] = "LENGTH\0";
 	
 		
-	drawCircle(FIRST_CIRCLE,CIRCLE_HEIGHT);
-	drawCircle(FIRST_CIRCLE+CIRCLE_GAP, CIRCLE_HEIGHT);
-	drawCircle(FIRST_CIRCLE+CIRCLE_GAP*2, CIRCLE_HEIGHT);
-	drawCircle(FIRST_CIRCLE+CIRCLE_GAP*3, CIRCLE_HEIGHT);
-	drawCircle(FIRST_CIRCLE+CIRCLE_GAP*4, CIRCLE_HEIGHT);
+	drawCircle(FIRST_CIRCLE,CIRCLE_HEIGHT, 10);
+	drawCircle(FIRST_CIRCLE+CIRCLE_GAP, CIRCLE_HEIGHT, 10);
+	drawCircle(FIRST_CIRCLE+CIRCLE_GAP*2, CIRCLE_HEIGHT, 10);
+	drawCircle(FIRST_CIRCLE+CIRCLE_GAP*3, CIRCLE_HEIGHT, 10);
+	drawCircle(FIRST_CIRCLE+CIRCLE_GAP*4, CIRCLE_HEIGHT, 10);
 	
 	display_draft[CIRCLE_HEIGHT][0] = '/';
 	display_draft[CIRCLE_HEIGHT-1][1] = '/';
@@ -299,14 +329,11 @@ void drawCockpit()
 	display_draft[CIRCLE_HEIGHT][79] = '\\';
 	
 	for (i=3;i<77;i++)
-		if (i< 39 || i > 41)
+	{
 		display_draft[CIRCLE_HEIGHT-2][i] = '_';
-	
-	display_draft[CIRCLE_HEIGHT-2][38] = '/';
-	display_draft[CIRCLE_HEIGHT-3][39] = '/';
-	display_draft[CIRCLE_HEIGHT-3][40] = '\\';
-	display_draft[CIRCLE_HEIGHT-2][41] = '\\';
-	
+		b800h[2*((CIRCLE_HEIGHT-2)*80+i)+1] = 203;
+	}
+
 	/*Draw circle descriptions*/
 
 	for (i=0;i<strlen(updown);i++)
@@ -324,14 +351,34 @@ void drawCockpit()
 	for (i=0;i<strlen(length);i++)
 		display_draft[CIRCLE_HEIGHT-1][FIRST_CIRCLE+i+CIRCLE_GAP*4-2] = length[i]; 
 	/*End circle descriptions*/
+	
+	for (i=20; i<25;i++)
+		for (j=0;j<80;j++)
+			if (display_draft[i][j] != '*')
+			b800h[2*(i*80+j)+1] = 40;
+		
+	for (i=1;i<79;i++)
+	{
+		b800h[2*(19*80+i)+1] = 103;
+	}
 }
 
 void updateStrip()
 {
+	int i;
 		if (strip_row < CIRCLE_HEIGHT-1)
 		{
-		display_draft[strip_row][20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='*';
-		display_draft[strip_row][59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='*';
+		display_draft[strip_row][20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='/';
+		display_draft[strip_row][59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='\\';
+		for (i =20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION+1;
+		i<59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION;i++)
+		{
+			//display_draft[strip_row][i+1] = 150;
+			b800h[2*(strip_row*80+i)] = ' ';
+			b800h[2*(strip_row*80+i)+1] = 10;
+		}
+
+
 		strip_row++;
 		updateDistance();
 	}
