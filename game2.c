@@ -10,6 +10,10 @@ void drawCircle (int x, int y,char color);
 void drawCockpit();
 void updateStrip();
 void updateDistance();
+void updateLeftRightDirection();
+void updateUpDownDirection();
+void updateGPS();
+void clearGPS();
 unsigned char far *b800h; //define at the top
 int receiver_pid;
 int strip_row = 0;
@@ -18,6 +22,7 @@ char display_draft[25][80];
 /*Global variables*/
 int LEFT_DIRECTION = 0;
 int RIGHT_DIRECTION = 0;
+volatile int DIRECTION = 0;
 /*End global variables*/
 INTPROC new_int9(int mdevno)
 {
@@ -151,9 +156,10 @@ void updateter()
      else
        front = rear = -1;
 
-     if ( (ch == 'a' || ch == 'A'))
+     if ( (ch == 'a' || ch == 'A') )//&& 59+strip_row-DIRECTION<79)
 	 {
        LEFT_DIRECTION--;
+	   DIRECTION--;
 	   for (i = strip_row;i >=0;i--)
 		{
 		for (j=80;j>=0;j--)
@@ -177,9 +183,10 @@ void updateter()
 		}
 	   
 	 }
-     else if ( (ch == 'd') || (ch == 'D') )
+     else if ( (ch == 'd' || ch == 'D') )//&& 20-strip_row-DIRECTION>0 )
 	 {
        RIGHT_DIRECTION++;
+	   DIRECTION++;
 	   	 for (i=0; i<strip_row;i++)
 		{
 		for (j=0;j<80;j++)
@@ -328,11 +335,11 @@ void drawCockpit()
 	display_draft[CIRCLE_HEIGHT-1][78] = '\\';
 	display_draft[CIRCLE_HEIGHT][79] = '\\';
 	
-	for (i=3;i<77;i++)
+	/*for (i=3;i<77;i++)
 	{
 		display_draft[CIRCLE_HEIGHT-2][i] = '_';
-		b800h[2*((CIRCLE_HEIGHT-2)*80+i)+1] = 203;
-	}
+		//b800h[2*((CIRCLE_HEIGHT-2)*80+i)+1] = 3;
+	}*/
 
 	/*Draw circle descriptions*/
 
@@ -361,30 +368,136 @@ void drawCockpit()
 	{
 		b800h[2*(19*80+i)+1] = 103;
 	}
+	
+	/*Draw GPS arrow*/
+	display_draft[22][40] = '|';
+	display_draft[23][40] = '|';
+	display_draft[21][39] = '\\';
+	display_draft[21][40] = '^';
+	display_draft[21][41] = '/';
+	
+	/*End GPS Arrow*/
 }
 
 void updateStrip()
 {
-	int i;
-		if (strip_row < CIRCLE_HEIGHT-1)
+	int i,j, temp;
+	temp = 0;
+		if (strip_row < CIRCLE_HEIGHT)
 		{
-		display_draft[strip_row][20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='/';
-		display_draft[strip_row][59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='\\';
-		for (i =20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION+1;
-		i<59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION;i++)
-		{
+		//display_draft[strip_row][20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='/';
+		//display_draft[strip_row][59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='\\';
+		
+		//if (20-strip_row-DIRECTION > 0 && 59+strip_row-DIRECTION < 80)
+		//{
+		//display_draft[strip_row][20-strip_row-DIRECTION] = '/';
+		//display_draft[strip_row][59+strip_row-DIRECTION] = '\\';
+		//}
+		
+		//for (i =20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION+1;
+		//i<59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION;i++)
+		//for (i =20-strip_row-DIRECTION+1;
+		//i<59+strip_row-DIRECTION;i++)
+		//{
 			//display_draft[strip_row][i+1] = 150;
-			b800h[2*(strip_row*80+i)] = ' ';
-			b800h[2*(strip_row*80+i)+1] = 10;
+			//if (i > 0 && i < 80)
+			//{
+		//	b800h[2*(strip_row*80+i)] = ' ';
+		//	b800h[2*(strip_row*80+i)+1] = 10;
+			//}
+		//}
+		      
+		for (i=0;temp<strip_row;i++)
+		{
+			for (j=20-temp-DIRECTION;j<=59+temp-DIRECTION;j++)
+			{
+
+		
+
+				if (j == 20-temp-DIRECTION)
+					b800h[2*(i*80+j)] = '/';
+				if (j == 59+temp-DIRECTION)
+					b800h[2*(i*80+j)] = '\\';
+				b800h[2*(i*80+j)+1] = 10;
+				
+				
+			}
+			temp ++;
+			
 		}
-
-
+		
+		for (i=0;i<=strip_row;i++)
+		{
+			for (j=59+temp-DIRECTION;j<80;j++)
+			{
+				b800h[2*(i*80+j)+1] = 20;
+				b800h[2*(i*80+j)] = ' ';
+			}
+			for (j=20-temp-DIRECTION;j>=0;j--)
+			{
+				b800h[2*(i*80+j)+1] = 20;
+				b800h[2*(i*80+j)] = ' ';
+			}
+		}
+		
+			
+			
 		strip_row++;
 		updateDistance();
+		updateLeftRightDirection();
+		updateUpDownDirection();
+		updateGPS();
 	}
 }
 
 void updateDistance()
 {
-	display_draft[22][57] = 19 -strip_row + '0';
+	display_draft[22][57] = 20 -strip_row + '0';
+}
+
+void updateLeftRightDirection()
+{
+	display_draft[22][21] = DIRECTION + '0';
+}
+
+void updateUpDownDirection()
+{
+	display_draft[22][3] = strip_row + '0';
+}
+
+void updateGPS()
+{
+	clearGPS();
+	if (DIRECTION == 0) //show up arrow*/
+	{
+		display_draft[21][40] = '^';
+		display_draft[22][40] = '|';
+		display_draft[23][40] = '|';
+	}
+	else
+		if (DIRECTION < 0) //right
+		{
+			display_draft[21][41] = '/';
+			display_draft[22][40] = '/';
+			display_draft[23][39] = '/';
+		}
+		else //LEFT
+		{
+			display_draft[21][39] = '\\';
+			display_draft[22][40] = '\\';
+			display_draft[23][41] = '\\';
+		}
+}
+
+void clearGPS()
+{
+
+	int i;
+	for (i=38;i<=41;i++){
+		display_draft[21][i] = ' ';
+		display_draft[22][i] = ' ';
+		display_draft[23][i] = ' ';
+		
+	}
+	
 }
