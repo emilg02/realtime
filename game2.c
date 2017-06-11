@@ -4,6 +4,7 @@
 #include <io.h>
 #include <bios.h>
 #include "header.h"
+#include <math.h>
 extern SYSCALL  sleept(int);
 extern struct intmap far *sys_imp;
 void drawCircle (int x, int y,char color);
@@ -14,15 +15,23 @@ void updateLeftRightDirection();
 void updateUpDownDirection();
 void updateGPS();
 void clearGPS();
+void checkLanding();
+void updateSpeed();
+void decreaseSpeed();
+void updateLength();
 unsigned char far *b800h; //define at the top
 int receiver_pid;
 int strip_row = 0;
 char display_draft[25][80];
-
+int LANDING_COUNTER=0;
 /*Global variables*/
 int LEFT_DIRECTION = 0;
 int RIGHT_DIRECTION = 0;
 volatile int DIRECTION = 0;
+volatile int VERTICAL_DIRECTION=0;
+int TMP_STRIP_DISTANCE =0;
+int TMP_LAND_STRIP_DISTANCE=0;
+int SPEED = 9;
 /*End global variables*/
 INTPROC new_int9(int mdevno)
 {
@@ -50,6 +59,14 @@ asm {
    else
 	if (scan == 80)
 		result = 's';
+	else 
+		if (scan == 45) //x - exit 
+		{ 
+		asm INT 27;
+		}
+	else
+		if (scan == 79)
+			result = 'e'; //END
  if ((scan == 46)&& (ascii == 3)) // Ctrl-C?
    asm INT 27; // terminate xinu
 
@@ -148,7 +165,7 @@ void updateter()
 
    receive();
 
-   while(front != -1)
+   while(front != -1 )//&& strip_row < CIRCLE_HEIGHT)
    {
      ch = ch_arr[front];
      if(front != rear)
@@ -156,7 +173,7 @@ void updateter()
      else
        front = rear = -1;
 
-     if ( (ch == 'a' || ch == 'A') )//&& 59+strip_row-DIRECTION<79)
+     if ( (ch == 'a' || ch == 'A') && strip_row!=CIRCLE_HEIGHT )//&& 59+strip_row-DIRECTION<79)
 	 {
        LEFT_DIRECTION--;
 	   DIRECTION--;
@@ -183,7 +200,7 @@ void updateter()
 		}
 	   
 	 }
-     else if ( (ch == 'd' || ch == 'D') )//&& 20-strip_row-DIRECTION>0 )
+     else if ( (ch == 'd' || ch == 'D')  && strip_row!=CIRCLE_HEIGHT)//&& 20-strip_row-DIRECTION>0 )
 	 {
        RIGHT_DIRECTION++;
 	   DIRECTION++;
@@ -211,13 +228,22 @@ void updateter()
 		}
 	   
 	 }
-	   else if ( (ch =='w') || (ch == 'W') )
+	   else if ( (ch =='w'|| ch == 'W') && strip_row!=CIRCLE_HEIGHT)
 	   {
 		   updateStrip();
+		   VERTICAL_DIRECTION++;
 	   }
-	   else if ( (ch =='s') || (ch == 'S'))
+	   else if ( (ch =='s' || ch == 'S')&& strip_row!=CIRCLE_HEIGHT)
 	   {
+		   if (strip_row -1 > 0)
+		   {
 		   strip_row--;
+		   VERTICAL_DIRECTION--;
+			}
+	   }
+	   else if ( (ch == 'e') || (ch == 'E'))
+	   {
+		   decreaseSpeed();
 	   }
    } // while(front != -1)
 
@@ -369,14 +395,11 @@ void drawCockpit()
 		b800h[2*(19*80+i)+1] = 103;
 	}
 	
-	/*Draw GPS arrow*/
-	display_draft[22][40] = '|';
-	display_draft[23][40] = '|';
-	display_draft[21][39] = '\\';
-	display_draft[21][40] = '^';
-	display_draft[21][41] = '/';
+	/*Draw initial distance*/
+	display_draft[22][56] = '2';
+	display_draft[22][57] = '0';
+	/*End initial distance*/
 	
-	/*End GPS Arrow*/
 }
 
 void updateStrip()
@@ -426,6 +449,7 @@ void updateStrip()
 			
 		}
 		
+		/*Clean sky*/
 		for (i=0;i<=strip_row;i++)
 		{
 			for (j=59+temp-DIRECTION;j<80;j++)
@@ -439,30 +463,101 @@ void updateStrip()
 				b800h[2*(i*80+j)] = ' ';
 			}
 		}
+		/*End clean sky*/
 		
 			
 			
 		strip_row++;
+		if (strip_row %3 == 0)
+		VERTICAL_DIRECTION++;
 		updateDistance();
 		updateLeftRightDirection();
 		updateUpDownDirection();
 		updateGPS();
+		//checkLanding();
 	}
+	else
+		checkLanding();
 }
 
 void updateDistance()
-{
-	display_draft[22][57] = 20 -strip_row + '0';
+{	
+		if (abs(strip_row) <= 10)
+		{
+			display_draft[22][56] = '1';
+			display_draft[22][57] = 10 - abs(strip_row) + '0';
+		}
+		else
+		{
+		display_draft[22][56] = ' ';
+		display_draft[22][57] = -2+ abs(strip_row) -TMP_STRIP_DISTANCE + '0';
+		TMP_STRIP_DISTANCE+=2;
+		}
+	
 }
 
 void updateLeftRightDirection()
 {
-	display_draft[22][21] = DIRECTION + '0';
+	if (DIRECTION + '0' < '0')
+	{	
+		display_draft[22][19] = '-';
+	}
+	else
+		display_draft[22][19] = ' ';
+	
+		if (abs(DIRECTION) > 19)
+		{
+			if (DIRECTION < 0)
+				display_draft[22][19]= '-';
+			display_draft[22][20] = '1';
+			display_draft[22][21] = '9';
+		}
+		else
+		if (abs(DIRECTION) > 9)
+		{
+			display_draft[22][20] = '1';
+			display_draft[22][21] = -10+ abs(DIRECTION) + '0';
+		}
+		else
+		{
+		display_draft[22][20] = ' ';
+		display_draft[22][21] = abs(DIRECTION) + '0';
+		}
 }
 
 void updateUpDownDirection()
 {
-	display_draft[22][3] = strip_row + '0';
+	//display_draft[22][3] = strip_row + '0';
+	if (VERTICAL_DIRECTION + '0' < '0')
+	{	
+		display_draft[22][1] = '-';
+	}
+	else
+	display_draft[22][1] = ' ';
+
+	if (VERTICAL_DIRECTION <- 19)
+	{
+		display_draft[22][1] = '-';
+		display_draft[22][2] = '1';
+		display_draft[22][3] = '9';
+	}
+	else
+	if (VERTICAL_DIRECTION > 19)
+	{
+		display_draft[22][2] = '1';
+		display_draft[22][3] = '9';
+	}
+	else
+	if (abs(VERTICAL_DIRECTION) > 9)
+	{
+		display_draft[22][2] = '1';
+		display_draft[22][3] = -10+ abs(VERTICAL_DIRECTION) + '0';
+	}
+	else
+	{
+	display_draft[22][2] = ' ';
+	display_draft[22][3] = abs(VERTICAL_DIRECTION) + '0';
+	}
 }
 
 void updateGPS()
@@ -500,4 +595,93 @@ void clearGPS()
 		
 	}
 	
+}
+
+void checkLanding()
+{
+	int perfect_landing_x1, perfect_landing_y1, perfect_landing_x2,perfect_landing_y2,i,j;
+	char goodjob[] = "GOOD JOB!!!\0";
+	char badluck[] = "BAD LUCK!!!\0";
+	char pressx[] = "Press X to Exit\0";
+	perfect_landing_x1 = 18;
+	perfect_landing_y1 = 2;
+	perfect_landing_x2 = 18;
+	perfect_landing_y2 = 77;
+	if (strip_row == CIRCLE_HEIGHT) //if finished
+	{
+	if (b800h[2*(perfect_landing_x1*80+perfect_landing_y1)+1] == 10 &&
+	b800h[2*(perfect_landing_x2*80+perfect_landing_y2)+1]  == 10)
+	{
+		display_draft[22][15] = SPEED + '0';
+		if (LANDING_COUNTER < 19 && SPEED == 0)  //finished
+			{  
+			
+			for (i=0;i<strlen(goodjob);i++)
+				display_draft[12][35+i] = goodjob[i];	
+			for (i=0;i<strlen(pressx);i++)
+				display_draft[13][32+i] = pressx[i];
+			}
+		else
+			{
+			/*Reverse strip*/
+			for (i=0;i<LANDING_COUNTER;i++)
+			for (j=0;j<80;j++)
+				b800h[2*(i*80+j)+1] = 20;
+			LANDING_COUNTER++;
+			updateSpeed();
+			updateLength();
+			/*End reverse strip*/
+			}
+			/*b800h[2*(perfect_landing_x1*80+perfect_landing_y1)+1] = 90;
+			b800h[2*(perfect_landing_x2*80+perfect_landing_y2)+1] = 90;
+			for (i=0;i<strlen(goodjob);i++)
+			display_draft[12][35+i] = goodjob[i];*/		
+	}
+	else //bad landing, not in strip
+	{
+		for (i=0;i<strlen(badluck);i++)
+		display_draft[12][35+i] = badluck[i];		
+	
+		for (i=0;i<strlen(pressx);i++)
+		display_draft[13][32+i] = pressx[i];
+	}
+	}
+	
+}
+
+void updateSpeed()
+{
+	int i,j;
+	char speedStr[] = "Speed:";
+	
+	for (i=0;i<strlen(speedStr);i++)
+		display_draft[22][i+8] = speedStr[i];
+	
+	display_draft[22][15] = SPEED + '0';
+	//b800h[2*(22*80+15)] = SPEED + '0';
+	b800h[2*(22*80+15)+1] = 155;
+	
+}
+
+void decreaseSpeed()
+{
+	if (SPEED-1 >= 0)
+	SPEED--;
+}
+
+void updateLength()
+{
+	
+		if (abs(LANDING_COUNTER) <= 10)
+		{
+			display_draft[22][74] = '1';
+			display_draft[22][75] = 10 - abs(LANDING_COUNTER) + '0';
+		}
+		else
+		{
+		display_draft[22][74] = ' ';
+		display_draft[22][75] = -2+ abs(LANDING_COUNTER) -TMP_LAND_STRIP_DISTANCE + '0';
+		TMP_LAND_STRIP_DISTANCE+=2;
+		}
+	//display_draft[22][75] = LANDING_COUNTER + '0';
 }
