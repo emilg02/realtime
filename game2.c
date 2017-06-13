@@ -407,29 +407,7 @@ void updateStrip()
 	int i,j, temp;
 	temp = 0;
 		if (strip_row < CIRCLE_HEIGHT)
-		{
-		//display_draft[strip_row][20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='/';
-		//display_draft[strip_row][59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION] ='\\';
-		
-		//if (20-strip_row-DIRECTION > 0 && 59+strip_row-DIRECTION < 80)
-		//{
-		//display_draft[strip_row][20-strip_row-DIRECTION] = '/';
-		//display_draft[strip_row][59+strip_row-DIRECTION] = '\\';
-		//}
-		
-		//for (i =20-strip_row-RIGHT_DIRECTION-LEFT_DIRECTION+1;
-		//i<59+strip_row-RIGHT_DIRECTION-LEFT_DIRECTION;i++)
-		//for (i =20-strip_row-DIRECTION+1;
-		//i<59+strip_row-DIRECTION;i++)
-		//{
-			//display_draft[strip_row][i+1] = 150;
-			//if (i > 0 && i < 80)
-			//{
-		//	b800h[2*(strip_row*80+i)] = ' ';
-		//	b800h[2*(strip_row*80+i)+1] = 10;
-			//}
-		//}
-		      
+		{	      
 		for (i=0;temp<strip_row;i++)
 		{
 			for (j=20-temp-DIRECTION;j<=59+temp-DIRECTION;j++)
