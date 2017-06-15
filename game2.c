@@ -7,6 +7,7 @@
 #include <math.h>
 extern SYSCALL  sleept(int);
 extern struct intmap far *sys_imp;
+void interrupt (*int8save)(void);
 void drawCircle (int x, int y,char color);
 void drawCockpit();
 void updateStrip();
@@ -21,6 +22,12 @@ void decreaseSpeed();
 void updateLength();
 void updateLevelAndLives();
 void generateWind();
+
+void NoSound(void);
+void Sound(int hertz);
+void ChangeSpeaker(int status);
+void mydelay(int n);
+volatile int count;
 unsigned char far *b800h; //define at the top
 int receiver_pid;
 
@@ -83,6 +90,16 @@ Skip1:
 
 } // new_int9
 
+void interrupt newint8(void)
+{
+	count++;
+	asm {
+		MOV AL,20h
+		OUT 20h,AL
+	}
+
+} // newint8(void)
+
 void set_new_int9_newisr()
 {
 	int i;
@@ -95,6 +112,17 @@ void set_new_int9_newisr()
 
 } // set_new_int9_newisr
 
+void set_new_int8_newisr()
+{
+	int i;
+	for(i=0; i < 32; i++)
+	if (sys_imp[i].ivec == 8)
+	{
+		sys_imp[i].newisr = newint8;
+		return;
+	}
+
+} 
 
 
 char display[2001];
@@ -284,6 +312,10 @@ xmain()
 	int i;
 	b800h = (unsigned char far*) 0xB8000000;
 	srand();
+	
+	sound(80);
+	mydelay(1);
+	NoSound();
 	asm {
 		mov ah, 0
 		mov al, 03
@@ -589,13 +621,22 @@ void checkLanding()
 				
 				if (LEVEL+1 == 3 && LIVES > 0) //game finished
 				{
+					sound(600);
+					mydelay(1);
+					NoSound();
+					sound(800);
+					mydelay(1);
+					NoSound();
+					
 					b800h[2*(22*80+15)] ='0'; //set speed to 0
 					for (i=0;i<strlen(endgame);i++)
 					b800h[2*(12*80+20+i)] = endgame[i];
 					exit(0);					
 				}
-				
-				
+				/*Level passed sound*/
+					sound(400);
+					mydelay(1);
+					NoSound();
 				/*Reset screen*/
 				for (i=0;i<4000;i+=2)
 				{	
@@ -634,8 +675,17 @@ void checkLanding()
 		else //bad landing, not in strip
 		{
 			LIVES--;
+				sound(80); //psila
+				mydelay(1);
+				NoSound();
 			if (LIVES == 0) //END GAME
 			{
+									sound(30);
+					mydelay(1);
+					NoSound();
+										sound(20);
+					mydelay(1);
+					NoSound();
 				for (i=0;i<strlen(badendgame);i++)					
 				b800h[2*(12*80+20+i)] = badendgame[i];
 				exit(0);
@@ -720,60 +770,174 @@ void generateWind()
 	wind_rand = rand () %3;
 	if (wind_rand == 1)
 	{
-	if (wind_direction)
-	{
-		DIRECTION+=1;
-		for (i=0; i<strip_row;i++)
+		if (wind_direction)
+		{
+			DIRECTION+=1;
+			for (i=0; i<strip_row;i++)
+			{
+				for (j=0;j<80;j++)
 				{
-					for (j=0;j<80;j++)
+					if (display_draft[i][j] == '/')
 					{
-						if (display_draft[i][j] == '/')
-						{
-							display_draft[i][j-1] = '/';
-							display_draft[i][j] = ' ';
-							
-						}
-						else if (display_draft[i][j] == '\\')
-						{
-							display_draft[i][j-1] = '\\';
-							display_draft[i][j] = ' ';
-						}
-						else if (b800h[2*(i*80+j)+1] == 10)
-						{
-							b800h[2*(i*80+j)+1] = 20;
-							b800h[2*(i*80+j-1)+1] = 10;
-						}
+						display_draft[i][j-1] = '/';
+						display_draft[i][j] = ' ';
+						
+					}
+					else if (display_draft[i][j] == '\\')
+					{
+						display_draft[i][j-1] = '\\';
+						display_draft[i][j] = ' ';
+					}
+					else if (b800h[2*(i*80+j)+1] == 10)
+					{
+						b800h[2*(i*80+j)+1] = 20;
+						b800h[2*(i*80+j-1)+1] = 10;
 					}
 				}
-				
-	}			
-	else
-	{
-		DIRECTION-=1;
-		for (i = strip_row;i >=0;i--)
+			}
+			
+		}			
+		else
+		{
+			DIRECTION-=1;
+			for (i = strip_row;i >=0;i--)
+			{
+				for (j=80;j>=0;j--)
 				{
-					for (j=80;j>=0;j--)
+					if (display_draft[i][j] == '/' )
 					{
-						if (display_draft[i][j] == '/' )
-						{
-							display_draft[i][j+1] = '/';
-							display_draft[i][j] = ' ';			
-						}
-						else if (display_draft[i][j] == '\\')
-						{
-							display_draft[i][j+1] = '\\';
-							display_draft[i][j] = ' ';
-						}
-						else if (b800h[2*(i*80+j)+1] == 10)
-						{
-							b800h[2*(i*80+j)+1] = 20;
-							b800h[2*(i*80+j+1)+1] = 10;
-						}
+						display_draft[i][j+1] = '/';
+						display_draft[i][j] = ' ';			
+					}
+					else if (display_draft[i][j] == '\\')
+					{
+						display_draft[i][j+1] = '\\';
+						display_draft[i][j] = ' ';
+					}
+					else if (b800h[2*(i*80+j)+1] == 10)
+					{
+						b800h[2*(i*80+j)+1] = 20;
+						b800h[2*(i*80+j+1)+1] = 10;
 					}
 				}
-		
-	}
+			}
+			
+		}
 	}
 	
 	
 }
+
+void mydelay(int n)
+{
+	asm {
+		CLI
+		PUSH AX
+		MOV AL,036h
+		OUT 43h,AL
+		MOV AX,9700
+		OUT 40h,AL
+		MOV AL,AH
+		OUT 40h,AL 
+		POP AX
+	} // asm
+
+	//int8save = getvect(8);
+	//setvect(8,newint8);
+	asm  { STI};
+	count = 0;
+	while(count <= n*110)
+	;
+
+	asm {
+		CLI
+		PUSH AX
+		MOV AL,036h
+		OUT 43h,AL
+		MOV AX,0
+		OUT 40h,AL
+		MOV AL,AH
+		OUT 40h,AL 
+		POP AX
+	} // asm
+
+
+	//setvect(8,int8save);
+
+
+} //mydelay
+
+/*------------------------------------------------
+ChangeSpeaker - Turn speaker on or off. */
+
+void ChangeSpeaker( int status )
+{
+	int portval;
+	//   portval = inportb( 0x61 );
+
+	portval = 0;
+	asm {
+		PUSH AX
+		MOV AL,61h
+		MOV byte ptr portval,AL
+		POP AX
+	}
+
+	if ( status==ON )
+	portval |= 0x03;
+	else
+	portval &=~ 0x03;
+	// outportb( 0x61, portval );
+	asm {
+		PUSH AX
+		MOV AX,portval
+		OUT 61h,AL
+		POP AX
+	} // asm
+
+} /*--ChangeSpeaker( )----------*/
+
+void Sound( int hertz )
+{
+	unsigned divisor = 1193180L / hertz;
+
+	ChangeSpeaker( ON );
+
+	//        outportb( 0x43, 0xB6 );
+	asm {
+		PUSH AX
+		MOV AL,0B6h
+		OUT 43h,AL
+		POP AX
+	} // asm
+
+
+	//       outportb( 0x42, divisor & 0xFF ) ;
+	asm {
+		PUSH AX
+		MOV AX,divisor
+		AND AX,0FFh
+		OUT 42h,AL
+		POP AX
+	} // asm
+
+
+	//        outportb( 0x42, divisor >> 8 ) ;
+
+	asm {
+		PUSH AX
+		MOV AX,divisor
+		MOV AL,AH
+		OUT 42h,AL
+		POP AX
+	} // asm
+
+} /*--Sound( )-----*/
+
+
+void NoSound( void )
+{
+	ChangeSpeaker( OFF );
+} /*--NoSound( )------*/
+
+

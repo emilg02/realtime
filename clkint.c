@@ -12,7 +12,7 @@ extern int sched_arr_int[];
 extern int gcycle_length;
 extern int point_in_cycle;
 extern int gno_of_pids;
-
+extern int count;
 SYSCALL noresched_send(pid, msg)
 int	pid;
 int	msg;
@@ -50,6 +50,11 @@ int mdevno;				/* minor device number		*/
 
         
 	tod++;
+		count++;
+	asm {
+		MOV AL,20h
+		OUT 20h,AL
+	}
 
         resched_flag = 0;
 	if (slnempty)
